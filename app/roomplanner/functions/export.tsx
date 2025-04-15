@@ -95,19 +95,29 @@ export const handleExport = (canvas: any) => {
     };
   };
 };
-export const exportData = (canvas: any, imageDetails: any[]) => {
+
+export const exportData = (canvas: any, imageDetails: any[] = []) => {
   const doc = new jsPDF(); // Initialize jsPDF
+
+  if (!canvas) {
+    console.error("Canvas not available for export.");
+    return;
+  }
+
+  // Convert canvas to image (PNG format)
+  const canvasImage = canvas.toDataURL({
+    format: "png",
+    quality: 1,
+  });
+
+  // Add canvas image to PDF
+  doc.addImage(canvasImage, "PNG", 10, 10, 180, 120); // Position: (10,10), Size: 180x120
 
   // Define export data structure
   const exportData: ExportData = {
     rooms: {},
     images: [],
   };
-
-  if (!canvas) {
-    console.error("Canvas not available for export.");
-    return;
-  }
 
   // Regular expression to match room titles like "Room-1", "Room-2"
   const roomRegex = /^Room-\d+$/;
@@ -131,9 +141,6 @@ export const exportData = (canvas: any, imageDetails: any[]) => {
       const heightLabelObj = canvas.getObjects().find((o: any) => o.id === `${obj.id}-heightLabel`);
       const roomIdLabelObj = canvas.getObjects().find((o: any) => o.id === obj.id);
 
-      // Log the object to check if the label exists
-      console.log(`Room: ${obj.id}, Room Label Object:`, roomIdLabelObj);
-
       // Use the room ID as a fallback label if no label is found
       const roomLabel = roomIdLabelObj && roomIdLabelObj.text ? roomIdLabelObj.text : obj.id;
 
@@ -148,7 +155,7 @@ export const exportData = (canvas: any, imageDetails: any[]) => {
     }
   });
 
-  // Collect image details (UNCHANGED)
+  // Collect image details
   imageDetails.forEach((imageDetail) => {
     exportData.images.push({
       imageId: imageDetail.imageId,
@@ -157,32 +164,45 @@ export const exportData = (canvas: any, imageDetails: any[]) => {
     });
   });
 
-  // Set up PDF title
+  // Set up table title
   doc.setFontSize(12);
-  doc.text("Room and Image Details:", 14, 10);
+  doc.text("Room and Image Details:", 14, 140); // Position text below canvas
 
-  // Set up room details in the PDF
-  doc.setFontSize(10);
-  let yPosition = 20; // Start position for room details
-Object.values(exportData.rooms).forEach((room: any) => {
+  // Define table headers
+  const tableHeaders = ["Item Name", "Width (m)", "Height (m)"];
+  const colWidths = [60, 40, 40]; // Define column widths
+
+  // Set table header styles
+  let yPosition = 150;
   doc.setFontSize(11);
-  doc.text(
-    `${room.roomIdLabel} - Width: ${room.width} m - Height: ${room.height} m`,
-    14,
-    yPosition
-  );
-  yPosition += 8; // Move to next line for the next room
-});
+  doc.setFont("helvetica", "bold");
 
-  // Set up image details in the PDF (UNCHANGED)
-  yPosition += 10; // Add space between rooms and images
+  // Draw table header
+  let xPosition = 14;
+  tableHeaders.forEach((header, index) => {
+    doc.text(header, xPosition, yPosition);
+    xPosition += colWidths[index];
+  });
+
+  yPosition += 8; // Move to next line after header
+  doc.setFont("helvetica", "normal");
+
+  // Add room details to table
+  Object.values(exportData.rooms).forEach((room: any) => {
+    xPosition = 14;
+    doc.text(room.roomIdLabel, xPosition, yPosition);
+    doc.text(`${room.width}`, xPosition + 60, yPosition);
+    doc.text(`${room.height}`, xPosition + 100, yPosition);
+    yPosition += 8; // Move to next line
+  });
+
+  // Add image details to table
   exportData.images.forEach((image) => {
-    doc.text(
-      `${image.imageId} - Width Label: ${image.widthLabel} - Height Label: ${image.heightLabel}`,
-      14,
-      yPosition
-    );
-    yPosition += 10; // Move to next line
+    xPosition = 14;
+    doc.text(image.imageId, xPosition, yPosition);
+    doc.text(`${image.widthLabel}`, xPosition + 60, yPosition);
+    doc.text(`${image.heightLabel}`, xPosition + 100, yPosition);
+    yPosition += 8; // Move to next line
   });
 
   // Save the PDF file
